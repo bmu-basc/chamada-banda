@@ -158,6 +158,51 @@
       })(d);
     }
 
+    // ----- PREFILL: puxa a chamada atual do GAS (via JSONP) e marca tudo -----
+    function carregarPrefill() {
+      const chatId = getChatId();
+      if (!chatId) return;
+      const s = document.createElement('script');
+      s.src = GAS_URL + '?action=get&chatId=' + encodeURIComponent(chatId) +
+              '&callback=preencher&_=' + Date.now();
+      document.body.appendChild(s);
+    }
+
+    // Função global chamada pela resposta JSONP do GAS.
+    window.preencher = function (data) {
+      if (!data) return; // primeira vez na semana: formulário em branco
+      document.getElementById('nome').value = data.nome || '';
+      document.getElementById('instrumento').value = data.instrumento || '';
+      (data.dias || []).forEach(function (valorDia, d) {
+        if (valorDia) marcarDia(d, valorDia);
+      });
+      atualizarFerias(); // se algum dia tem Férias, reabre o bloco de datas
+    };
+
+    function marcarDia(d, valor) {
+      const partes = String(valor).split(', ');
+      for (let i = 0; i < partes.length; i++) {
+        const tok = partes[i];
+        if (tok.indexOf('Outro') === 0) {
+          // o "Outro: ..." é sempre o último; o resto (mesmo com vírgulas) é o texto
+          const txt = partes.slice(i).join(', ').replace(/^Outro:?\s*/, '');
+          const cbOutro = document.querySelector('input[name="dia' + d + '"][value="Outro"]');
+          if (cbOutro) cbOutro.checked = true;
+          const campo = document.getElementById('outro' + d);
+          const cont = document.getElementById('cont' + d);
+          if (campo) { campo.value = txt; campo.style.display = 'block'; }
+          if (cont) { cont.style.display = 'block'; cont.textContent = txt.length + '/' + LIMITE_OUTRO; }
+          break;
+        } else {
+          document.querySelectorAll('input[name="dia' + d + '"]').forEach(function (cb) {
+            if (cb.value === tok) cb.checked = true;
+          });
+        }
+      }
+    }
+
+    carregarPrefill();
+
     document.getElementById('enviar').addEventListener('click', enviar);
 
     async function enviar() {
