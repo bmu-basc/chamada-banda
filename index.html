@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Efetivo da Banda</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    body { font-family: -apple-system, Roboto, Arial, sans-serif; max-width: 560px;
+           margin: 0 auto; padding: 16px; color: #222; }
+    h1 { font-size: 20px; }
+    .campo { margin-bottom: 20px; }
+    label.titulo { font-weight: 600; display: block; margin-bottom: 8px; }
+    input[type=text], select { width: 100%; padding: 10px; font-size: 16px;
+           box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; }
+    .dia { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+    .dia h3 { margin: 0 0 8px; font-size: 16px; }
+    .opcao { display: block; padding: 6px 0; font-size: 15px; }
+    .opcao input { margin-right: 8px; transform: scale(1.2); }
+    .outro-txt { margin-top: 6px; display: none; }
+    button { background: #2e7d32; color: #fff; border: none; padding: 14px; width: 100%;
+             font-size: 16px; border-radius: 8px; cursor: pointer; }
+    button:disabled { background: #999; }
+    #status { text-align: center; margin-top: 14px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>🎯 Efetivo da Banda — Disponibilidade</h1>
+
+  <div class="campo">
+    <label class="titulo">Graduação e nome *</label>
+    <input type="text" id="nome" placeholder="Ex: CB Silva">
+  </div>
+
+  <div class="campo">
+    <label class="titulo">Instrumento *</label>
+    <select id="instrumento"><option value="">Selecione...</option></select>
+  </div>
+
+  <div id="dias"></div>
+
+  <button id="enviar">Enviar</button>
+  <div id="status"></div>
+
+  <script>
+    // ===== CONFIG =====
+    // Sua URL /exec do GAS (backend). Já preenchida.
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycby5-TikOhEjNRmMFCKI_jClWV3ekPi7rk1amQ68D6MXAo1kwKh-Na72l4oRyHUGqBs0/exec';
+
+    const INSTRUMENTOS = [
+      "Bombardino", "Clarineta", "Corneta (todos os soldados)", "Flauta / Flautim",
+      "Trompete", "Trompa", "Trombone", "Tuba", "Percussão (apenas graduados)",
+      "Saxofone Alto", "Saxofone Tenor"
+    ];
+    const DIAS = ["Segunda Feira", "Terça Feira", "Quarta Feira", "Quinta Feira", "Sexta Feira"];
+    const OPCOES = ["Presente", "Entrando de Serviço", "Saindo de Serviço", "Hospital", "Férias", "Outro"];
+
+    const tg = window.Telegram ? window.Telegram.WebApp : null;
+    if (tg) { tg.ready(); tg.expand(); }
+
+    // chatId: do parâmetro da URL (?chatId=) ou do próprio usuário do Telegram.
+    function getChatId() {
+      const u = new URLSearchParams(location.search).get('chatId');
+      if (u) return u;
+      if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return String(tg.initDataUnsafe.user.id);
+      return '';
+    }
+
+    // Monta o select de instrumentos.
+    const sel = document.getElementById('instrumento');
+    INSTRUMENTOS.forEach(function (inst) {
+      const o = document.createElement('option');
+      o.value = inst; o.textContent = inst;
+      sel.appendChild(o);
+    });
+
+    // Monta os blocos de dia com as opções.
+    const cont = document.getElementById('dias');
+    DIAS.forEach(function (nomeDia, d) {
+      const div = document.createElement('div');
+      div.className = 'dia';
+      let html = '<h3>📅 ' + nomeDia + '</h3>';
+      OPCOES.forEach(function (op) {
+        html += '<label class="opcao"><input type="checkbox" name="dia' + d + '" value="' + op + '"> ' + op + '</label>';
+      });
+      html += '<input type="text" class="outro-txt" id="outro' + d + '" placeholder="Descreva o \'Outro\'...">';
+      div.innerHTML = html;
+      cont.appendChild(div);
+    });
+
+    // Mostra o campo de texto quando "Outro" é marcado.
+    document.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        if (cb.value === 'Outro') {
+          const d = cb.name.replace('dia', '');
+          document.getElementById('outro' + d).style.display = cb.checked ? 'block' : 'none';
+        }
+      });
+    });
+
+    document.getElementById('enviar').addEventListener('click', enviar);
+
+    async function enviar() {
+      const nome = document.getElementById('nome').value.trim();
+      const instrumento = document.getElementById('instrumento').value;
+      const status = document.getElementById('status');
+
+      if (!nome || !instrumento) {
+        status.textContent = '⚠️ Preencha nome e instrumento.';
+        return;
+      }
+
+      const dias = [];
+      for (let d = 0; d < DIAS.length; d++) {
+        const marcadas = [];
+        document.querySelectorAll('input[name="dia' + d + '"]:checked').forEach(function (cb) {
+          if (cb.value === 'Outro') {
+            const txt = document.getElementById('outro' + d).value.trim();
+            marcadas.push(txt ? 'Outro: ' + txt : 'Outro');
+          } else {
+            marcadas.push(cb.value);
+          }
+        });
+        dias.push(marcadas.join(', '));
+      }
+
+      const payload = { chatId: getChatId(), nome: nome, instrumento: instrumento, dias: dias };
+
+      const btn = document.getElementById('enviar');
+      btn.disabled = true;
+      status.textContent = 'Enviando...';
+
+      try {
+        // text/plain = requisição simples (sem preflight CORS). no-cors: o doPost roda
+        // do lado do servidor (grava na planilha e te manda a confirmação no Telegram),
+        // mesmo sem podermos ler a resposta aqui.
+        await fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        status.textContent = '✅ Resposta enviada!';
+        if (tg) setTimeout(function () { tg.close(); }, 1200);
+      } catch (e) {
+        btn.disabled = false;
+        status.textContent = '❌ Erro ao enviar. Tente de novo.';
+      }
+    }
+  </script>
+</body>
+</html>
