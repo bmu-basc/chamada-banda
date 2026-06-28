@@ -23,7 +23,7 @@
     .opcao input { margin-right: 8px; transform: scale(1.2); }
     .outro-txt { margin-top: 6px; display: none; }
     .contador { font-size: 12px; color:#777; text-align:right; margin-top:2px; display:none; }
-    #feriasBox { border:1px solid #2e7d32; border-radius:8px; padding:12px; margin-bottom:14px; display:none; }
+    #feriasBox { border:1px solid #2e7d32; border-radius:8px; padding:12px; margin-top:10px; margin-bottom:4px; display:none; }
     #feriasBox h3 { margin:0 0 10px; font-size:16px; }
     button { background: #2e7d32; color: #fff; border: none; padding: 14px; width: 100%;
              font-size: 16px; border-radius: 8px; cursor: pointer; }
@@ -91,9 +91,11 @@
 
     // ----- monta dias -----
     const cont = document.getElementById('dias');
+    const diaDivs = [];
     DIAS.forEach(function (nomeDia, d) {
       const div = document.createElement('div');
       div.className = 'dia';
+      div.id = 'diaBox' + d;
       let html = '<h3>📅 ' + nomeDia + '</h3>';
       OPCOES.forEach(function (op) {
         html += '<label class="opcao"><input type="checkbox" name="dia' + d + '" value="' + op + '"> ' + op + '</label>';
@@ -103,6 +105,7 @@
       html += '<div class="contador" id="cont' + d + '"></div>';
       div.innerHTML = html;
       cont.appendChild(div);
+      diaDivs[d] = div;
     });
 
     // ----- VALIDAÇÃO 1: Entrando de Serviço marca Saindo de Serviço no dia seguinte -----
@@ -115,10 +118,19 @@
       if (saindo) saindo.checked = cb.checked;
     }
 
-    // ----- VALIDAÇÃO 2: mostra o bloco de férias se "Férias" estiver marcado em algum dia -----
+    // ----- VALIDAÇÃO 2: bloco de datas encaixado DENTRO do 1º dia marcado como Férias -----
     function atualizarFerias() {
-      const algum = document.querySelector('input[value="Férias"]:checked');
-      document.getElementById('feriasBox').style.display = algum ? 'block' : 'none';
+      const feriasBox = document.getElementById('feriasBox');
+      let primeiro = -1;
+      for (let d = 0; d < DIAS.length; d++) {
+        if (document.querySelector('input[name="dia' + d + '"][value="Férias"]:checked')) { primeiro = d; break; }
+      }
+      if (primeiro === -1) {
+        feriasBox.style.display = 'none';
+      } else {
+        diaDivs[primeiro].appendChild(feriasBox); // realoca para dentro do dia (preserva as datas digitadas)
+        feriasBox.style.display = 'block';
+      }
     }
 
     // ----- liga os eventos dos checkboxes -----
