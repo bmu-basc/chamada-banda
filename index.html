@@ -35,7 +35,7 @@
   <h1>🎯 Efetivo da Banda — Disponibilidade</h1>
 
   <div class="campo">
-    <label class="titulo">Graduação e nome *</label>
+    <label class="titulo">Graduação e nome * <small style="font-weight:400;color:#777;">(fixo ao editar)</small></label>
     <input type="text" id="nome" placeholder="Ex: CB Silva">
   </div>
 
@@ -170,13 +170,19 @@
 
     // Função global chamada pela resposta JSONP do GAS.
     window.preencher = function (data) {
-      if (!data) return; // primeira vez na semana: formulário em branco
-      document.getElementById('nome').value = data.nome || '';
+      if (!data) return; // primeira vez na semana: formulário em branco e editável
+      const campoNome = document.getElementById('nome');
+      campoNome.value = data.nome || '';
+      if (data.nome) {
+        campoNome.readOnly = true;          // trava, mas continua sendo enviado
+        campoNome.style.background = '#eee'; // visual de "bloqueado"
+        campoNome.style.color = '#555';
+      }
       document.getElementById('instrumento').value = data.instrumento || '';
       (data.dias || []).forEach(function (valorDia, d) {
         if (valorDia) marcarDia(d, valorDia);
       });
-      atualizarFerias(); // se algum dia tem Férias, reabre o bloco de datas
+      atualizarFerias();
     };
 
     function marcarDia(d, valor) {
