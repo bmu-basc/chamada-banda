@@ -8,15 +8,15 @@
   <style>
     :root { color-scheme: light; }
     html, body { background:#ffffff !important; color:#222 !important; }
-    body { font-family: -apple-system, Roboto, Arial, sans-serif; max-width: 560px;
-           margin: 0 auto; padding: 16px; }
+    body { font-family: -apple-system, Roboto, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 16px; }
     h1 { font-size: 20px; }
     h1, h3, label, .opcao, .titulo { color:#222 !important; }
     .campo { margin-bottom: 20px; }
     label.titulo { font-weight: 600; display: block; margin-bottom: 8px; }
-    input[type=text], input[type=date], select {
-           width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box;
-           border: 1px solid #ccc; border-radius: 6px; color:#222 !important; background:#fff !important; }
+    input[type=text], input[type=date] {
+      width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box;
+      border: 1px solid #ccc; border-radius: 6px; color:#222 !important; background:#fff !important; }
+    input[readonly] { background:#eee !important; color:#555 !important; }
     .dia { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
     .dia h3 { margin: 0 0 8px; font-size: 16px; }
     .opcao { display: block; padding: 6px 0; font-size: 15px; }
@@ -25,71 +25,65 @@
     .contador { font-size: 12px; color:#777; text-align:right; margin-top:2px; display:none; }
     #feriasBox { border:1px solid #2e7d32; border-radius:8px; padding:12px; margin-top:10px; margin-bottom:4px; display:none; }
     #feriasBox h3 { margin:0 0 10px; font-size:16px; }
-    button { background: #2e7d32; color: #fff; border: none; padding: 14px; width: 100%;
-             font-size: 16px; border-radius: 8px; cursor: pointer; }
+    button { background: #2e7d32; color: #fff; border: none; padding: 14px; width: 100%; font-size: 16px; border-radius: 8px; cursor: pointer; }
     button:disabled { background: #999; }
     #status { text-align: center; margin-top: 14px; font-weight: 600; }
+    #erro { text-align:center; color:#c62828; font-weight:600; margin-top:40px; display:none; }
   </style>
 </head>
 <body>
   <h1>🎯 Efetivo da Banda — Disponibilidade</h1>
+  <div id="cabecalhoSemana" style="color:#2e7d32;font-weight:600;margin-bottom:12px;"></div>
 
-  <div class="campo">
-    <label class="titulo">Graduação e nome * <small style="font-weight:400;color:#777;">(fixo ao editar)</small></label>
-    <input type="text" id="nome" placeholder="Ex: CB Silva">
+  <div id="formArea">
+    <div class="campo">
+      <label class="titulo">Graduação e nome</label>
+      <input type="text" id="nome" readonly>
+    </div>
+    <div class="campo">
+      <label class="titulo">Instrumento</label>
+      <input type="text" id="instrumento" readonly>
+    </div>
+
+    <div id="dias"></div>
+
+    <div id="feriasBox">
+      <h3>🏖️ Período de Férias</h3>
+      <label class="titulo">Início</label>
+      <input type="date" id="feriasInicio">
+      <label class="titulo" style="margin-top:10px;">Término</label>
+      <input type="date" id="feriasFim">
+    </div>
+
+    <button id="enviar">Enviar</button>
+    <div id="status"></div>
   </div>
 
-  <div class="campo">
-    <label class="titulo">Instrumento *</label>
-    <select id="instrumento"><option value="">Selecione...</option></select>
-  </div>
-
-  <div id="dias"></div>
-
-  <!-- Aparece quando "Férias" é marcado em qualquer dia -->
-  <div id="feriasBox">
-    <h3>🏖️ Período de Férias</h3>
-    <label class="titulo">Início</label>
-    <input type="date" id="feriasInicio">
-    <label class="titulo" style="margin-top:10px;">Término</label>
-    <input type="date" id="feriasFim">
-  </div>
-
-  <button id="enviar">Enviar</button>
-  <div id="status"></div>
+  <div id="erro">Cadastro não encontrado. Fale com um administrador.</div>
 
   <script>
-    // ===== CONFIG =====
     const GAS_URL = 'https://script.google.com/macros/s/AKfycby5-TikOhEjNRmMFCKI_jClWV3ekPi7rk1amQ68D6MXAo1kwKh-Na72l4oRyHUGqBs0/exec';
-    const LIMITE_OUTRO = 100; // <-- mude aqui se quiser outro limite de caracteres
+    const LIMITE_OUTRO = 100;
 
-    const INSTRUMENTOS = [
-      "Bombardino", "Clarineta", "Corneta (todos os soldados)", "Flauta / Flautim",
-      "Trompete", "Trompa", "Trombone", "Tuba", "Percussão (apenas graduados)",
-      "Saxofone Alto", "Saxofone Tenor"
-    ];
-    const DIAS = ["Segunda Feira", "Terça Feira", "Quarta Feira", "Quinta Feira", "Sexta Feira"];
-    const OPCOES = ["Presente", "Entrando de Serviço", "Saindo de Serviço", "Hospital", "Férias", "Outro"];
+    const DIAS = ['Segunda Feira', 'Terça Feira', 'Quarta Feira', 'Quinta Feira', 'Sexta Feira', 'Sábado', 'Domingo'];
+    const OPCOES = ['Presente', 'Entrando de Serviço', 'Saindo de Serviço', 'Hospital', 'Férias', 'Outro'];
 
     const tg = window.Telegram ? window.Telegram.WebApp : null;
     if (tg) { tg.ready(); tg.expand(); }
 
+    const params = new URLSearchParams(location.search);
+    const SEMANA = params.get('semana') === 'atual' ? 'atual' : 'proxima';
+    document.getElementById('cabecalhoSemana').textContent =
+      SEMANA === 'atual' ? 'Semana ATUAL' : 'Próxima semana';
+
     function getChatId() {
-      const u = new URLSearchParams(location.search).get('chatId');
+      const u = params.get('chatId');
       if (u) return u;
       if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) return String(tg.initDataUnsafe.user.id);
       return '';
     }
 
-    // ----- monta instrumentos -----
-    const sel = document.getElementById('instrumento');
-    INSTRUMENTOS.forEach(function (inst) {
-      const o = document.createElement('option');
-      o.value = inst; o.textContent = inst;
-      sel.appendChild(o);
-    });
-
-    // ----- monta dias -----
+    // monta os 7 dias
     const cont = document.getElementById('dias');
     const diaDivs = [];
     DIAS.forEach(function (nomeDia, d) {
@@ -108,32 +102,26 @@
       diaDivs[d] = div;
     });
 
-    // ----- VALIDAÇÃO 1: Entrando de Serviço marca Saindo de Serviço no dia seguinte -----
+    // entrando de serviço -> marca saindo no dia seguinte (dentro da semana; domingo cruza semana = Etapa 4)
     function syncEntrandoSaindo(cb) {
       if (cb.value !== 'Entrando de Serviço') return;
       const d = parseInt(cb.name.replace('dia', ''), 10);
       const prox = d + 1;
-      if (prox >= DIAS.length) return; // sexta não tem dia seguinte no formulário
+      if (prox >= DIAS.length) return;
       const saindo = document.querySelector('input[name="dia' + prox + '"][value="Saindo de Serviço"]');
       if (saindo) saindo.checked = cb.checked;
     }
 
-    // ----- VALIDAÇÃO 2: bloco de datas encaixado DENTRO do 1º dia marcado como Férias -----
     function atualizarFerias() {
       const feriasBox = document.getElementById('feriasBox');
       let primeiro = -1;
       for (let d = 0; d < DIAS.length; d++) {
         if (document.querySelector('input[name="dia' + d + '"][value="Férias"]:checked')) { primeiro = d; break; }
       }
-      if (primeiro === -1) {
-        feriasBox.style.display = 'none';
-      } else {
-        diaDivs[primeiro].appendChild(feriasBox); // realoca para dentro do dia (preserva as datas digitadas)
-        feriasBox.style.display = 'block';
-      }
+      if (primeiro === -1) { feriasBox.style.display = 'none'; }
+      else { diaDivs[primeiro].appendChild(feriasBox); feriasBox.style.display = 'block'; }
     }
 
-    // ----- liga os eventos dos checkboxes -----
     document.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
       cb.addEventListener('change', function () {
         if (cb.value === 'Outro') {
@@ -149,7 +137,6 @@
       });
     });
 
-    // ----- VALIDAÇÃO 3: contador de caracteres do "Outro" -----
     for (let d = 0; d < DIAS.length; d++) {
       (function (d) {
         const o = document.getElementById('outro' + d);
@@ -158,26 +145,24 @@
       })(d);
     }
 
-    // ----- PREFILL: puxa a chamada atual do GAS (via JSONP) e marca tudo -----
+    // ----- PREFILL via JSONP -----
     function carregarPrefill() {
       const chatId = getChatId();
-      if (!chatId) return;
+      if (!chatId) { mostrarErro(); return; }
       const s = document.createElement('script');
       s.src = GAS_URL + '?action=get&chatId=' + encodeURIComponent(chatId) +
-              '&callback=preencher&_=' + Date.now();
+              '&semana=' + SEMANA + '&callback=preencher&_=' + Date.now();
       document.body.appendChild(s);
     }
 
-    // Função global chamada pela resposta JSONP do GAS.
+    function mostrarErro() {
+      document.getElementById('formArea').style.display = 'none';
+      document.getElementById('erro').style.display = 'block';
+    }
+
     window.preencher = function (data) {
-      if (!data) return; // primeira vez na semana: formulário em branco e editável
-      const campoNome = document.getElementById('nome');
-      campoNome.value = data.nome || '';
-      if (data.nome) {
-        campoNome.readOnly = true;          // trava, mas continua sendo enviado
-        campoNome.style.background = '#eee'; // visual de "bloqueado"
-        campoNome.style.color = '#555';
-      }
+      if (!data) { mostrarErro(); return; } // não vinculado ao roster
+      document.getElementById('nome').value = data.nome || '';
       document.getElementById('instrumento').value = data.instrumento || '';
       (data.dias || []).forEach(function (valorDia, d) {
         if (valorDia) marcarDia(d, valorDia);
@@ -186,18 +171,19 @@
     };
 
     function marcarDia(d, valor) {
-      const partes = String(valor).split(', ');
+      const txt0 = String(valor).trim();
+      if (txt0 === '' || txt0.toLowerCase() === 'xxxx') return; // placeholder de fim de semana
+      const partes = txt0.split(', ');
       for (let i = 0; i < partes.length; i++) {
         const tok = partes[i];
         if (tok.indexOf('Outro') === 0) {
-          // o "Outro: ..." é sempre o último; o resto (mesmo com vírgulas) é o texto
-          const txt = partes.slice(i).join(', ').replace(/^Outro:?\s*/, '');
+          const t = partes.slice(i).join(', ').replace(/^Outro:?\s*/, '');
           const cbOutro = document.querySelector('input[name="dia' + d + '"][value="Outro"]');
           if (cbOutro) cbOutro.checked = true;
           const campo = document.getElementById('outro' + d);
-          const cont = document.getElementById('cont' + d);
-          if (campo) { campo.value = txt; campo.style.display = 'block'; }
-          if (cont) { cont.style.display = 'block'; cont.textContent = txt.length + '/' + LIMITE_OUTRO; }
+          const c = document.getElementById('cont' + d);
+          if (campo) { campo.value = t; campo.style.display = 'block'; }
+          if (c) { c.style.display = 'block'; c.textContent = t.length + '/' + LIMITE_OUTRO; }
           break;
         } else {
           document.querySelectorAll('input[name="dia' + d + '"]').forEach(function (cb) {
@@ -212,13 +198,8 @@
     document.getElementById('enviar').addEventListener('click', enviar);
 
     async function enviar() {
-      const nome = document.getElementById('nome').value.trim();
-      const instrumento = document.getElementById('instrumento').value;
       const status = document.getElementById('status');
 
-      if (!nome || !instrumento) { status.textContent = '⚠️ Preencha nome e instrumento.'; return; }
-
-      // datas de férias (se o bloco estiver visível)
       let feriasInicio = '', feriasFim = '';
       if (document.getElementById('feriasBox').style.display === 'block') {
         feriasInicio = document.getElementById('feriasInicio').value;
@@ -232,24 +213,21 @@
         const marcadas = [];
         document.querySelectorAll('input[name="dia' + d + '"]:checked').forEach(function (cb) {
           if (cb.value === 'Outro') {
-            const txt = document.getElementById('outro' + d).value.trim();
-            marcadas.push(txt ? 'Outro: ' + txt : 'Outro');
-          } else {
-            marcadas.push(cb.value);
-          }
+            const t = document.getElementById('outro' + d).value.trim();
+            marcadas.push(t ? 'Outro: ' + t : 'Outro');
+          } else { marcadas.push(cb.value); }
         });
-        dias.push(marcadas.join(', '));
+        let valor = marcadas.join(', ');
+        // Sábado(5)/Domingo(6) em branco -> mantém o placeholder xxxx
+        if (!valor && (d === 5 || d === 6)) valor = 'xxxx';
+        dias.push(valor);
       }
 
-      const payload = {
-        chatId: getChatId(), nome: nome, instrumento: instrumento, dias: dias,
-        feriasInicio: feriasInicio, feriasFim: feriasFim
-      };
+      const payload = { chatId: getChatId(), semana: SEMANA, dias: dias, feriasInicio: feriasInicio, feriasFim: feriasFim };
 
       const btn = document.getElementById('enviar');
       btn.disabled = true;
       status.textContent = 'Enviando...';
-
       try {
         await fetch(GAS_URL, {
           method: 'POST', mode: 'no-cors',
