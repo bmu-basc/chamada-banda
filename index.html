@@ -67,6 +67,9 @@
 
     const DIAS = ['Segunda Feira', 'Terça Feira', 'Quarta Feira', 'Quinta Feira', 'Sexta Feira', 'Sábado', 'Domingo'];
     const OPCOES = ['Presente', 'Entrando de Serviço', 'Saindo de Serviço', 'Hospital', 'Férias', 'Outro'];
+    // Fim de semana (Sáb=5, Dom=6) só faz sentido com este subconjunto:
+    const OPCOES_FDS = ['Entrando de Serviço', 'Saindo de Serviço', 'Férias', 'Outro'];
+    function opcoesDoDia(d) { return (d === 5 || d === 6) ? OPCOES_FDS : OPCOES; }
 
     const tg = window.Telegram ? window.Telegram.WebApp : null;
     if (tg) { tg.ready(); tg.expand(); }
@@ -90,8 +93,8 @@
       const div = document.createElement('div');
       div.className = 'dia';
       div.id = 'diaBox' + d;
-      let html = '<h3>📅 ' + nomeDia + '</h3>';
-      OPCOES.forEach(function (op) {
+      let html = '<h3>📅 ' + nomeDia + (d <= 4 ? ' *' : '') + '</h3>';
+      opcoesDoDia(d).forEach(function (op) {
         html += '<label class="opcao"><input type="checkbox" name="dia' + d + '" value="' + op + '"> ' + op + '</label>';
       });
       html += '<input type="text" class="outro-txt" id="outro' + d + '" maxlength="' + LIMITE_OUTRO +
@@ -218,6 +221,11 @@
           } else { marcadas.push(cb.value); }
         });
         let valor = marcadas.join(', ');
+        // Dias úteis (Seg–Sex) são obrigatórios.
+        if (!valor && d <= 4) {
+          status.textContent = '⚠️ Marque pelo menos uma opção em ' + DIAS[d] + '.';
+          return;
+        }
         // Sábado(5)/Domingo(6) em branco -> mantém o placeholder xxxx
         if (!valor && (d === 5 || d === 6)) valor = 'xxxx';
         dias.push(valor);
